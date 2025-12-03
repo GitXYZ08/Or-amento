@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Orçamentos NEMPRESA</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css" />
+    
+    <style>
+        /* Import Google font - Poppins */
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        /* --- VARIAVEIS DA NOTIFICAÇÃO --- */
+        :root {
+            --dark: #34495E;
+            --light: #ffffff;
+            --success: #0ABF30;
+            --error: #E24D4C;
+            --warning: #E9BD0C;
+            --info: #3498DB;
+        }
+
+        /* --- ESTILOS GERAIS E RESPONSIVIDADE --- */
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: rgb(219, 218, 218);;
+            color: #333;
+        }
+
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 20px auto;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            min-height: 90vh;
+        }
+
+        /* Lado esquerdo (Formulário de Edição) */
+        .editor-panel {
+            flex: 1;
+            padding: 30px;
+            background-color: #2c3e50;
+            color: white;
+            min-width: 350px;
+        }
+
+        /* Lado direito (Pré-visualização do Orçamento) */
+        .preview-panel {
+            flex: 2;
+            padding: 30px;
+            background-color: rgb(234, 234, 234);
+            overflow-y: auto;
+        }
+
+        /* Responsividade: Empilhar em ecrãs pequenos */
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+            }
+            .editor-panel {
+                min-width: 100%;
+            }
+            .preview-panel {
+                padding: 15px;
+            }
+        }
+
+        /* --- ESTILOS DO FORMULÁRIO (EDITOR) --- */
+        h2, h3 { color: #f39c12; margin-top: 0; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            box-sizing: border-box;
+            background-color: #3b506b;
+            color: white;
+        }
+        .item-row { 
+            border: 1px solid #4a627a; 
+            padding: 10px; 
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        
+        /* NOVO LAYOUT DO DETALHE DO ITEM */
+        .item-details { 
+            display: flex; /* Usar Flexbox para alinhar as duas linhas */
+            flex-direction: column;
+            gap: 15px; /* Espaço entre a linha de Qty/Preço e Desc/IVA */
+            margin-top: 10px;
+        }
+
+        /* Linha de campos (Qty/Price ou Desc/IVA) */
+        .item-details-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Duas colunas iguais */
+            gap: 10px;
+        }
+        
+        /* Estilos dos botões */
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+        .btn-add { background-color: #2ecc71; color: white; }
+        .btn-add:hover { background-color: #27ae60; }
+        .btn-remove { background-color: #e74c3c; color: white; float: right; }
+        .btn-remove:hover { background-color: #c0392b; }
+        
+        .file-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn-file {
+            background-color: #3498db;
+            color: white;
+            flex: 1;
+            margin-top: 0;
+        }
+        .btn-file:hover { background-color: #2980b9; }
+
+        .export-controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .btn-export { background-color: #f39c12; color: white; flex: 1; }
+        .btn-export:hover { background-color: #e67e22; }
+        .btn-print { background-color: #bdc3c7; color: #333; flex: 1; }
+        .btn-print:hover { background-color: #95a5a6; }
+        
+        /* CORREÇÃO DO LAYOUT: Campos de % */
+        .percent-input-group {
+            display: flex;
+            flex-direction: row; 
+            align-items: center; 
+            gap: 5px;
+        }
+
+        .percent-input-group label {
+            flex-basis: 50%; 
+            margin-bottom: 0; 
+            white-space: nowrap; 
+            font-size: 0.8em; 
+        }
+
+        .percent-input-group input {
+            flex-basis: 50%; 
+            flex-grow: 1; 
+        }
+
+        /* --- ESTILOS DO ORÇAMENTO (PREVIEW) --- */
+        .orcamento {
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 30px; 
+            border: 1px solid #ddd;
+            min-height: 90vh; 
+            background: white; 
+        }
+        
+        /* Estilo aplicado apenas na exportação para A4 ficar correto */
+        .orcamento.pdf-ready {
+            max-width: 100% !important; 
+            padding: 20px !important; 
+            border: none !important; 
+        }
+
+        .header-orcamento {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #f39c12;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header-orcamento h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin: 0;
+        }
+
+        .data-header {
+            text-align: right;
+            line-height: 1.5;
+        }
+        .data-header strong {
+            color: #f39c12;
+            font-size: 1.2em;
+        }
+
+        .details-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            line-height: 1.4;
+        }
+
+        .details-section h4 {
+            font-size: 1.1em;
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        /* Tabela de Produtos/Serviços */
+        .tabela-itens {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .tabela-itens th, .tabela-itens td {
+            padding: 10px;
+            text-align: left;
+        }
+        .tabela-itens th {
+            background-color: #f9f9f9;
+            border-bottom: 2px solid #eee;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        .tabela-itens td {
+            border-bottom: 1px solid #eee;
+        }
+
+        .tabela-itens .description-col { width: 35%; }
+        .tabela-itens .numeric-col { text-align: right; }
+        .tabela-itens .iva-col, .tabela-itens .discount-col { width: 10%; } 
+
+        /* Totais */
+        .totais-container {
+            width: 300px;
+            margin-left: auto;
+            border: 1px solid #eee;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+        }
+        .total-row.final {
+            font-weight: bold;
+            background-color: #f9f9f9;
+            border-top: 1px solid #ddd;
+            font-size: 1.1em;
+        }
+        .total-row .value { text-align: right; }
+
+        /* Classes de controlo de visibilidade do IVA e SUBTOTAL */
+        .hide-element { display: none !important; }
+
+        /* --- ESTILOS DE TOAST NOTIFICATION --- */
+        .notifications {
+            position: fixed;
+            top: 30px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .notifications :where(.toast, .column) {
+            display: flex;
+            align-items: center;
+        }
+        .notifications .toast {
+            width: 400px;
+            position: relative;
+            overflow: hidden;
+            list-style: none;
+            border-radius: 4px;
+            padding: 16px 17px;
+            margin-bottom: 10px;
+            background: var(--light);
+            justify-content: space-between;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+            animation: show_toast 0.3s ease forwards;
+        }
+        @keyframes show_toast {
+            0% { transform: translateX(100%); }
+            40% { transform: translateX(-5%); }
+            80% { transform: translateX(0%); }
+            100% { transform: translateX(-10px); }
+        }
+        .notifications .toast.hide {
+            animation: hide_toast 0.3s ease forwards;
+        }
+        @keyframes hide_toast {
+            100% { transform: translateX(calc(100% + 20px)); }
+        }
+        .toast::before {
+            position: absolute;
+            content: "";
+            height: 3px;
+            width: 100%;
+            bottom: 0px;
+            left: 0px;
+            animation: progress 5s linear forwards;
+        }
+        @keyframes progress {
+            100% { width: 0%; }
+        }
+        .toast.success::before { background: var(--success); }
+        .toast.error::before { background: var(--error); }
+        .toast.warning::before { background: var(--warning); }
+        .toast.info::before { background: var(--info); }
+        .toast .column i { font-size: 1.75rem; }
+        .toast.success .column i { color: var(--success); }
+        .toast.error .column i { color: var(--error); }
+        .toast.warning .column i { color: var(--warning); }
+        .toast.info .column i { color: var(--info); }
+        .toast .column span { font-size: 1.07rem; margin-left: 12px; }
+        .toast i:last-child { color: #aeb0d7; cursor: pointer; }
+        .toast i:last-child:hover { color: var(--dark); }
+        
+        /* --- ESTILOS PARA IMPRESSÃO --- */
+        @media print {
+            body { background: none; }
+            .container { box-shadow: none; margin: 0; }
+            .editor-panel, .export-controls, .btn, .notifications { display: none; } 
+            .preview-panel { flex: none; padding: 0; width: 100%; }
+            .orcamento { border: none; padding: 0; min-height: auto; max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <ul class="notifications"></ul>
+
+    <div class="container" id="main-container">
+        <div class="editor-panel" id="editor-panel">
+            <h2>Configurações do Orçamento</h2>
+            
+            <div class="file-controls">
+                <button class="btn btn-file" onclick="saveOrcamento()">💾 Guardar Orçamento</button>
+                <button class="btn btn-file" onclick="loadOrcamento()">📂 Abrir Orçamento</button>
+            </div>
+            <hr>
+
+            <div class="form-group">
+                <label for="numero">N.º do Documento:</label>
+                <input type="text" id="numero" placeholder="Nome / Nº Orçamento" value="" oninput="updatePreview('doc-number', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="emissao">Data de Emissão:</label>
+                <input type="text" id="emissao" placeholder="Dia/Mês/Ano" value="" oninput="updatePreview('doc-issue-date', this.value)">
+            </div>
+            
+            <hr>
+
+            <h3>Dados do Cliente</h3>
+            <div class="form-group">
+                <label for="cliente-nome">Nome:</label>
+                <input type="text" id="cliente-nome" value="" placeholder="Nome do Cliente" oninput="updatePreview('cliente-nome-preview', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="cliente-morada">Morada:</label>
+                <input type="text" id="cliente-morada" value="" placeholder="Morada completa" oninput="updatePreview('cliente-morada-preview', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="cliente-contacto">Contacto:</label>
+                <input type="text" id="cliente-contacto" value="" placeholder="Contacto telefónico" oninput="updatePreview('cliente-contacto-preview', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="cliente-nif">NIF</label>
+                <input type="text" id="cliente-nif" value="" placeholder="NIF do Cliente" oninput="updatePreview('cliente-nif-preview', this.value)">
+            </div>
+            
+            <hr>
+
+            <h3>Serviços / Produtos</h3>
+            <div id="items-list">
+                <div class="item-row" id="item-row-1" data-item-id="1">
+                    <button class="btn btn-remove" onclick="removeItem(1)">Remover</button>
+                    <div class="form-group">
+                        <label>Descrição:</label>
+                        <textarea id="description-1" rows="2" oninput="updateItemPreview(1)"></textarea>
+                    </div>
+                    
+                    <div class="item-details">
+                        <div class="item-details-row">
+                            <div>
+                                <label>Quantidade:</label>
+                                <input type="number" id="qty-1" value="" min="1" oninput="updateItemPreview(1)">
+                            </div>
+                            <div>
+                                <label>Preço Unitário (€):</label>
+                                <input type="number" id="price-1" value="" min="0" step="0.01" oninput="updateItemPreview(1)">
+                            </div>
+                        </div>
+
+                        <div class="item-details-row">
+                            <div class="percent-input-group">
+                                <label for="discount-percent-1">Desc. (%):</label>
+                                <input type="number" id="discount-percent-1" value="" min="0" max="100" step="1" oninput="updateItemPreview(1)">
+                            </div>
+                            <div class="percent-input-group">
+                                <label for="iva-percent-1">IVA (%):</label>
+                                <input type="number" id="iva-percent-1" value="" min="0" step="0.1" oninput="updateItemPreview(1)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-add" onclick="addItem()">+ Adicionar Item</button>
+
+            <hr>
+
+            <div class="export-controls">
+                <button class="btn btn-export" onclick="downloadPDF()">Download PDF</button>
+                <button class="btn btn-print" onclick="window.print()">Imprimir</button>
+            </div>
+        </div>
+
+        <div class="preview-panel">
+            <div class="orcamento" id="orcamento-container">
+                <div class="header-orcamento">
+                    <h1>EMPRESA</h1>
+                    <div class="data-header">
+                        <strong id="doc-issue-date"></strong>
+                        <p style="margin: 5px 0 0 0;">ORÇAMENTO: <span id="doc-number"></span></p>
+                    </div>
+                </div>
+
+                <div class="details-section">
+                    <div>
+                        <h4>EMPRESA</h4>
+                        <p style="margin: 0;">Rua Exemplo, Porta 01</p>
+                        <p style="margin: 0;">info@empresa.com</p>
+                        <p style="margin: 0;">+351 933 000 0000</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <h4>Cliente</h4>
+                        <p style="margin: 0;" id="cliente-nome-preview"></p>
+                        <p style="margin: 0;" id="cliente-morada-preview"></p>
+                        <p style="margin: 0;" id="cliente-contacto-preview"></p>
+                        <p style="margin: 0;" id="cliente-nif-preview"></p>
+                    </div>
+                </div>
+
+                <table class="tabela-itens">
+                    <thead>
+                        <tr>
+                            <th class="description-col">DESCRIÇÃO</th>
+                            <th class="numeric-col">PREÇO</th>
+                            <th class="numeric-col">QTD</th>
+                            <th class="numeric-col discount-col" id="header-discount">DESC. (%)</th>
+                            <th class="numeric-col iva-col" id="header-iva">IVA (%)</th>
+                            <th class="numeric-col">TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orcamento-items-preview">
+                        <tr id="preview-item-1">
+                            <td><span id="preview-description-1"></span></td>
+                            <td class="numeric-col"><span id="preview-price-1"></span> €</td>
+                            <td class="numeric-col"><span id="preview-qty-1"></span></td>
+                            <td class="numeric-col discount-col" id="preview-discount-1"></td>
+                            <td class="numeric-col iva-col" id="preview-iva-1"></td>
+                            <td class="numeric-col"><span id="preview-total-1"></span> €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="totais-container">
+                    <div class="total-row hide-element" id="subtotal-sem-iva-row">
+                        <span>SUBTOTAL (s/ IVA)</span>
+                        <span class="value" id="subtotal-sem-iva-value">€</span>
+                    </div>
+                    <div class="total-row hide-element" id="total-discount-row">
+                        <span>TOTAL DESCONTO</span>
+                        <span class="value" id="discount-value">€</span>
+                    </div>
+                    <div class="total-row hide-element" id="total-iva-row">
+                        <span>TOTAL IVA (€)</span>
+                        <span class="value" id="iva-value">€</span>
+                    </div>
+                    <div class="total-row final">
+                        <span>TOTAL FINAL</span>
+                        <span class="value" id="total-final-value">€</span>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 50px; font-size: 0.8em; color: #777;">
+                    <p>EMPRESA | Rua Exemplo, Porta 01 | info@empresa.com | +351 933 000 0000</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let itemIdCounter = 1;
+        const notifications = document.querySelector(".notifications"); 
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateItemPreview(1);
+            updateTotals();
+        });
+        
+        // --- FUNÇÕES DE TOAST NOTIFICATION ---
+        const toastDetails = {
+            timer: 5000,
+            success: {
+                icon: 'fa-circle-check',
+                text: 'Sucesso.',
+            },
+            error: {
+                icon: 'fa-circle-xmark',
+                text: 'Ocorreu um erro.',
+            },
+            warning: {
+                icon: 'fa-triangle-exclamation',
+                text: 'Aviso: Preencha os campos obrigatórios.',
+            },
+            info: {
+                icon: 'fa-circle-info',
+                text: 'Informação.',
+            }
+        }
+
+        const removeToast = (toast) => {
+            toast.classList.add("hide");
+            if(toast.timeoutId) clearTimeout(toast.timeoutId);
+            setTimeout(() => toast.remove(), 500); 
+        }
+
+        /**
+         * Cria e mostra uma notificação toast.
+         * @param {string} id - Tipo de notificação ('success', 'error', 'warning', 'info').
+         * @param {string} [message=null] - Mensagem personalizada para substituir o texto padrão.
+         */
+        const createToast = (id, message = null) => {
+           
+            const { icon, text: defaultText } = toastDetails[id];
+            const messageToUse = message || defaultText;
+
+            const toast = document.createElement("li"); 
+            toast.className = `toast ${id}`; 
+          
+            toast.innerHTML = `<div class="column">
+                                 <i class="fa-solid ${icon}"></i>
+                                 <span>${messageToUse}</span>
+                              </div>
+                              <i class="fa-solid fa-xmark" onclick="removeToast(this.parentElement)"></i>`;
+            notifications.appendChild(toast); 
+           
+            toast.timeoutId = setTimeout(() => removeToast(toast), toastDetails.timer);
+        }
+        
+        // --- FUNÇÕES DE LÓGICA DO FORMULÁRIO (RESTANTE CÓDIGO) ---
+
+        function updatePreview(idElementoPreview, valor) {
+            document.getElementById(idElementoPreview).textContent = valor;
+        }
+
+        function addItem() {
+            itemIdCounter++;
+            const id = itemIdCounter;
+
+            const formContainer = document.getElementById('items-list');
+            const newItemRow = document.createElement('div');
+            newItemRow.className = 'item-row';
+            newItemRow.id = `item-row-${id}`;
+            newItemRow.dataset.itemId = id;
+            
+            // NOVO HTML PARA OS DETALHES DO ITEM
+            newItemRow.innerHTML = `
+                <button class="btn btn-remove" onclick="removeItem(${id})">Remover</button>
+                <div class="form-group">
+                    <label>Descrição:</label>
+                    <textarea id="description-${id}" rows="2" oninput="updateItemPreview(${id})"></textarea>
+                </div>
+                
+                <div class="item-details">
+                    <div class="item-details-row">
+                        <div>
+                            <label>Quantidade:</label>
+                            <input type="number" id="qty-${id}" value="" min="1" oninput="updateItemPreview(${id})">
+                        </div>
+                        <div>
+                            <label>Preço Unitário (€):</label>
+                            <input type="number" id="price-${id}" value="" min="0" step="0.01" oninput="updateItemPreview(${id})">
+                        </div>
+                    </div>
+
+                    <div class="item-details-row">
+                        <div class="percent-input-group">
+                            <label for="discount-percent-${id}">Desc. (%):</label>
+                            <input type="number" id="discount-percent-${id}" value="" min="0" max="100" step="1" oninput="updateItemPreview(${id})">
+                        </div>
+                        <div class="percent-input-group">
+                            <label for="iva-percent-${id}">IVA (%):</label>
+                            <input type="number" id="iva-percent-${id}" value="" min="0" step="0.1" oninput="updateItemPreview(${id})">
+                        </div>
+                    </div>
+                </div>
+            `;
+            // FIM DO NOVO HTML
+            
+            formContainer.appendChild(newItemRow);
+
+            const previewContainer = document.getElementById('orcamento-items-preview');
+            const newPreviewRow = document.createElement('tr');
+            newPreviewRow.id = `preview-item-${id}`;
+            newPreviewRow.innerHTML = `
+                <td><span id="preview-description-${id}"></span></td>
+                <td class="numeric-col"><span id="preview-price-${id}">0.00</span> €</td>
+                <td class="numeric-col"><span id="preview-qty-${id}">1</span></td>
+                <td class="numeric-col discount-col" id="preview-discount-${id}">0%</td>
+                <td class="numeric-col iva-col" id="preview-iva-${id}">23%</td> 
+                <td class="numeric-col"><span id="preview-total-${id}">0.00</span> €</td>
+            `;
+            previewContainer.appendChild(newPreviewRow);
+
+            updateItemPreview(id);
+        }
+
+        function removeItem(id, isLoadProcess = false) {
+            const formRow = document.getElementById(`item-row-${id}`);
+            const previewRow = document.getElementById(`preview-item-${id}`);
+            
+            if (isLoadProcess || document.querySelectorAll('.item-row').length > 1) {
+                if (formRow) formRow.remove();
+                if (previewRow) previewRow.remove();
+                if (!isLoadProcess) {
+                    updateTotals();
+                }
+            } else if (!isLoadProcess && document.querySelectorAll('.item-row').length === 1) {
+                createToast('warning', 'O orçamento deve ter pelo menos um item.');
+            }
+        }
+
+        function updateItemPreview(id) {
+            const description = document.getElementById(`description-${id}`).value || '';
+            const qty = parseFloat(document.getElementById(`qty-${id}`).value) || 0;
+            const priceUnit = parseFloat(document.getElementById(`price-${id}`).value) || 0;
+            const discountPercent = parseFloat(document.getElementById(`discount-percent-${id}`).value) || 0;
+            const ivaPercent = parseFloat(document.getElementById(`iva-percent-${id}`).value) || 0;
+            
+            const precoBaseLinha = qty * priceUnit;
+            const discountAmount = precoBaseLinha * (discountPercent / 100);
+            const precoBaseLiquido = precoBaseLinha - discountAmount;
+            const ivaAmountLinha = precoBaseLiquido * (ivaPercent / 100);
+            const totalLinha = precoBaseLiquido + ivaAmountLinha; 
+
+            document.getElementById(`preview-description-${id}`).textContent = description;
+            document.getElementById(`preview-price-${id}`).textContent = precoBaseLinha.toFixed(2); 
+            document.getElementById(`preview-qty-${id}`).textContent = qty;
+            document.getElementById(`preview-discount-${id}`).textContent = `${discountPercent.toFixed(0)}%`;
+            document.getElementById(`preview-iva-${id}`).textContent = `${ivaPercent.toFixed(1)}%`;
+            document.getElementById(`preview-total-${id}`).textContent = totalLinha.toFixed(2);
+
+            updateTotals();
+        }
+
+        function updateTotals() {
+            let subtotalBruto = 0; 
+            let totalDesconto = 0; 
+            let totalIva = 0;      
+            const itemRows = document.querySelectorAll('#orcamento-items-preview > tr');
+
+            itemRows.forEach(row => {
+                const id = row.id.split('-').pop();
+                const qty = parseFloat(document.getElementById(`qty-${id}`).value) || 0;
+                const priceUnit = parseFloat(document.getElementById(`price-${id}`).value) || 0;
+                const discountPercent = parseFloat(document.getElementById(`discount-percent-${id}`).value) || 0;
+                const ivaPercent = parseFloat(document.getElementById(`iva-percent-${id}`).value) || 0;
+                
+                const precoBaseLinha = qty * priceUnit;
+                const discountAmount = precoBaseLinha * (discountPercent / 100);
+                const precoBaseLiquido = precoBaseLinha - discountAmount;
+                const ivaAmountLinha = precoBaseLiquido * (ivaPercent / 100);
+                
+                subtotalBruto += precoBaseLinha;
+                totalDesconto += discountAmount;
+                totalIva += ivaAmountLinha; 
+            });
+            
+            const subtotalSemIvaLiquido = subtotalBruto - totalDesconto;
+            const totalFinal = subtotalSemIvaLiquido + totalIva;
+
+            const showIvaSection = Math.round(totalIva * 100) / 100 > 0; 
+            const showDiscountSection = Math.round(totalDesconto * 100) / 100 > 0; 
+            
+            const totalDiscountRow = document.getElementById('total-discount-row');
+            const headerDiscount = document.getElementById('header-discount');
+            const previewDiscountCells = document.querySelectorAll('.discount-col');
+            
+            const subtotalRow = document.getElementById('subtotal-sem-iva-row');
+            const totalIvaRow = document.getElementById('total-iva-row');
+            const headerIva = document.getElementById('header-iva');
+            const previewIvaCells = document.querySelectorAll('.iva-col');
+            
+            if (showDiscountSection) {
+                totalDiscountRow.classList.remove('hide-element');
+                headerDiscount.classList.remove('hide-element');
+                previewDiscountCells.forEach(cell => cell.classList.remove('hide-element'));
+            } else {
+                totalDiscountRow.classList.add('hide-element');
+                headerDiscount.classList.add('hide-element');
+                previewDiscountCells.forEach(cell => cell.classList.add('hide-element'));
+            }
+
+            if (showIvaSection) {
+                subtotalRow.classList.remove('hide-element');
+                totalIvaRow.classList.remove('hide-element');
+                headerIva.classList.remove('hide-element');
+                previewIvaCells.forEach(cell => cell.classList.remove('hide-element'));
+            } else {
+                subtotalRow.classList.add('hide-element');
+                totalIvaRow.classList.add('hide-element');
+                headerIva.classList.add('hide-element');
+                previewIvaCells.forEach(cell => cell.classList.add('hide-element'));
+            }
+
+            document.getElementById('subtotal-sem-iva-value').textContent = formatCurrency(subtotalSemIvaLiquido);
+            document.getElementById('discount-value').textContent = formatCurrency(totalDesconto);
+            document.getElementById('iva-value').textContent = formatCurrency(totalIva);
+            document.getElementById('total-final-value').textContent = formatCurrency(totalFinal);
+        }
+
+        function formatCurrency(value) {
+            const roundedValue = Math.round(value * 100) / 100;
+            return roundedValue.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+        }
+
+        // --- FUNÇÃO DE EXPORTAÇÃO PARA PDF ---
+
+        function downloadPDF() {
+            const editorPanel = document.getElementById('editor-panel');
+            const container = document.getElementById('main-container');
+            const orcamentoElement = document.getElementById('orcamento-container');
+
+            editorPanel.style.display = 'none';
+            container.style.display = 'block'; 
+            orcamentoElement.classList.add('pdf-ready'); 
+
+            const opt = {
+                margin: 5, 
+                filename: 'Orçamento NEMPRESA.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    logging: true, 
+                    dpi: 192, 
+                    letterRendering: true 
+                },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(orcamentoElement).save().then(() => {
+                editorPanel.style.display = 'flex';
+                container.style.display = 'flex';
+                orcamentoElement.classList.remove('pdf-ready');
+            });
+        }
+        
+        // --- FUNÇÕES DE GUARDAR/ABRIR NO EXPLORADOR (File System Access API) ---
+
+        function collectFormData() {
+            const data = {
+                meta: {
+                    numero: document.getElementById('numero').value,
+                    emissao: document.getElementById('emissao').value,
+                },
+                cliente: {
+                    nome: document.getElementById('cliente-nome').value,
+                    morada: document.getElementById('cliente-morada').value,
+                    contacto: document.getElementById('cliente-contacto').value,
+                    nif: document.getElementById('cliente-nif').value,
+                },
+                items: []
+            };
+
+            const itemRows = document.querySelectorAll('#items-list .item-row');
+            itemRows.forEach(row => {
+                const id = row.dataset.itemId;
+                data.items.push({
+                    id: id,
+                    description: document.getElementById(`description-${id}`).value,
+                    qty: document.getElementById(`qty-${id}`).value,
+                    price: document.getElementById(`price-${id}`).value,
+                    discount: document.getElementById(`discount-percent-${id}`).value,
+                    iva: document.getElementById(`iva-percent-${id}`).value,
+                });
+            });
+            return data;
+        }
+
+        async function saveOrcamento() {
+            if (!window.showSaveFilePicker) {
+                createToast('warning', "O seu navegador não suporta a função de Guardar no explorador de ficheiros. Use a opção 'Download PDF' ou atualize o seu navegador (Chrome/Edge/Firefox).");
+                return;
+            }
+
+            const orcamentoData = collectFormData();
+            const docNumber = orcamentoData.meta.numero.trim() || 'novo-orcamento';
+            const jsonContent = JSON.stringify(orcamentoData, null, 2);
+
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: `${docNumber}.json`,
+                    types: [{
+                        description: 'Ficheiro de Orçamento JSON',
+                        accept: {
+                            'application/json': ['.json'],
+                        },
+                    }],
+                });
+
+                const writableStream = await handle.createWritable();
+                await writableStream.write(jsonContent);
+                await writableStream.close();
+
+                // Notificação de sucesso
+                createToast('success', `Orçamento "${docNumber}.json" guardado com sucesso!`);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Erro ao guardar ficheiro:', error);
+                    // Notificação de erro
+                    createToast('error', 'Erro ao guardar o ficheiro. Verifique a consola para mais detalhes.');
+                }
+            }
+        }
+
+        async function loadOrcamento() {
+            if (!window.showOpenFilePicker) {
+                createToast('warning', "O seu navegador não suporta a função de Abrir no explorador de ficheiros. Atualize o seu navegador (Chrome/Edge/Firefox).");
+                return;
+            }
+
+            try {
+                const [fileHandle] = await window.showOpenFilePicker({
+                    types: [{
+                        description: 'Ficheiro de Orçamento JSON',
+                        accept: {
+                            'application/json': ['.json'],
+                        },
+                    }],
+                    multiple: false,
+                });
+
+                const file = await fileHandle.getFile();
+                const jsonContent = await file.text();
+                const orcamento = JSON.parse(jsonContent);
+
+                applyFormData(orcamento);
+                
+                // Notificação de sucesso
+                createToast('success', `Orçamento "${file.name}" carregado com sucesso.`);
+
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Erro ao abrir ficheiro:', error);
+                    // Notificação de erro
+                    createToast('error', 'Erro ao abrir o ficheiro. Certifique-se de que é um ficheiro JSON válido.');
+                }
+            }
+        }
+
+        function applyFormData(data) {
+            // 1. Limpar todos os itens existentes
+            const currentItemRows = document.querySelectorAll('#items-list .item-row');
+            for (let i = currentItemRows.length - 1; i >= 0; i--) {
+                const id = currentItemRows[i].dataset.itemId;
+                removeItem(id, true);
+            }
+            const previewList = document.getElementById('orcamento-items-preview');
+            while (previewList.firstChild) {
+                previewList.removeChild(previewList.firstChild);
+            }
+            itemIdCounter = 0; 
+
+            // 2. Preencher dados meta
+            document.getElementById('numero').value = data.meta.numero;
+            document.getElementById('emissao').value = data.meta.emissao;
+            updatePreview('doc-number', data.meta.numero);
+            updatePreview('doc-issue-date', data.meta.emissao);
+
+            // 3. Preencher dados do cliente
+            document.getElementById('cliente-nome').value = data.cliente.nome;
+            document.getElementById('cliente-morada').value = data.cliente.morada;
+            document.getElementById('cliente-contacto').value = data.cliente.contacto;
+            document.getElementById('cliente-nif').value = data.cliente.nif;
+            updatePreview('cliente-nome-preview', data.cliente.nome);
+            updatePreview('cliente-morada-preview', data.cliente.morada);
+            updatePreview('cliente-contacto-preview', data.cliente.contacto);
+            updatePreview('cliente-nif-preview', data.cliente.nif);
+
+            // 4. Adicionar e preencher itens
+            data.items.forEach(item => {
+                addItem(); 
+                const id = itemIdCounter; 
+
+                document.getElementById(`description-${id}`).value = item.description;
+                document.getElementById(`qty-${id}`).value = item.qty;
+                document.getElementById(`price-${id}`).value = item.price;
+                document.getElementById(`discount-percent-${id}`).value = item.discount;
+                document.getElementById(`iva-percent-${id}`).value = item.iva;
+                
+                updateItemPreview(id); 
+            });
+
+            updateTotals(); 
+        }
+    </script>
+
+</body>
+</html>
