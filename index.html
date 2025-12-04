@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt_PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador de Orçamentos NEMPRESA</title>
+    <title>Gerador de Orçamentos</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css" />
@@ -27,7 +27,7 @@
             font-family: 'Poppins', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: rgb(219, 218, 218);;
+            background-color: #f4f7f6;
             color: #333;
         }
 
@@ -53,7 +53,7 @@
         .preview-panel {
             flex: 2;
             padding: 30px;
-            background-color: rgb(234, 234, 234);
+            background-color: white;
             overflow-y: auto;
         }
 
@@ -90,18 +90,18 @@
             border-radius: 4px;
         }
         
-        /* NOVO LAYOUT DO DETALHE DO ITEM */
+        /* LAYOUT DO DETALHE DO ITEM */
         .item-details { 
-            display: flex; /* Usar Flexbox para alinhar as duas linhas */
+            display: flex;
             flex-direction: column;
-            gap: 15px; /* Espaço entre a linha de Qty/Preço e Desc/IVA */
+            gap: 15px;
             margin-top: 10px;
         }
 
         /* Linha de campos (Qty/Price ou Desc/IVA) */
         .item-details-row {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* Duas colunas iguais */
+            grid-template-columns: 1fr 1fr; 
             gap: 10px;
         }
         
@@ -174,13 +174,6 @@
             background: white; 
         }
         
-        /* Estilo aplicado apenas na exportação para A4 ficar correto */
-        .orcamento.pdf-ready {
-            max-width: 100% !important; 
-            padding: 20px !important; 
-            border: none !important; 
-        }
-
         .header-orcamento {
             display: flex;
             justify-content: space-between;
@@ -265,13 +258,25 @@
 
         /* Classes de controlo de visibilidade do IVA e SUBTOTAL */
         .hide-element { display: none !important; }
+        
+        /* NOVO: Estilo para a secção de notas */
+        .notes-section {
+            margin-top: 30px; 
+            padding: 10px; 
+            border-left: 3px solid #f39c12;
+            display: none; /* Escondido por defeito, será mostrado pelo JS se houver conteúdo */
+        }
+        .notes-content {
+            margin: 0; 
+            font-size: 0.9em;
+        }
 
         /* --- ESTILOS DE TOAST NOTIFICATION --- */
         .notifications {
             position: fixed;
             top: 30px;
             right: 20px;
-            z-index: 1000;
+            z-index: 1000; 
         }
         .notifications :where(.toast, .column) {
             display: flex;
@@ -327,13 +332,51 @@
         .toast i:last-child { color: #aeb0d7; cursor: pointer; }
         .toast i:last-child:hover { color: var(--dark); }
         
-        /* --- ESTILOS PARA IMPRESSÃO --- */
+        /* --- CORREÇÃO DE PDF: ESTILOS PARA PDF MODE (APLICADO AO BODY) --- */
+        /** Esta classe é aplicada pelo JavaScript antes de gerar o PDF */
+        body.pdf-mode {
+            background-color: white !important; 
+            min-height: auto !important;
+        }
+        body.pdf-mode .container {
+            flex-direction: column !important; 
+            max-width: 100% !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            min-height: auto !important;
+            width: 100% !important;
+        }
+
+        body.pdf-mode .editor-panel, 
+        body.pdf-mode .export-controls, 
+        body.pdf-mode .notifications {
+            display: none !important; /* Esconde o painel de edição e botões */
+        }
+
+        body.pdf-mode .preview-panel {
+            flex: none !important;
+            padding: 0 !important;
+            width: 100% !important;
+            overflow: visible !important; /* Essencial para o layout do PDF */
+        }
+
+        body.pdf-mode .orcamento {
+            max-width: 790px !important; /* Aprox. largura A4 */
+            width: 100% !important;
+            margin: 0 auto !important; 
+            border: none !important; 
+            padding: 30px !important;
+            min-height: auto !important;
+            box-shadow: none !important;
+        }
+
+        /* --- ESTILOS PARA IMPRESSÃO (media print) --- */
+        /* Esta secção trata da impressão direta (Ctrl+P) */
         @media print {
-            body { background: none; }
-            .container { box-shadow: none; margin: 0; }
+            .container { box-shadow: none; margin: 0; flex-direction: column; width: 100%; max-width: none; min-height: auto; }
             .editor-panel, .export-controls, .btn, .notifications { display: none; } 
             .preview-panel { flex: none; padding: 0; width: 100%; }
-            .orcamento { border: none; padding: 0; min-height: auto; max-width: 100%; }
+            .orcamento { border: none; padding: 30px; min-height: auto; max-width: 790px; margin: 0 auto; }
         }
     </style>
 </head>
@@ -353,7 +396,7 @@
 
             <div class="form-group">
                 <label for="numero">N.º do Documento:</label>
-                <input type="text" id="numero" placeholder="Nome / Nº Orçamento" value="" oninput="updatePreview('doc-number', this.value)">
+                <input type="text" id="numero" placeholder="Nome/Número do Documento" value="" oninput="updatePreview('doc-number', this.value)">
             </div>
             <div class="form-group">
                 <label for="emissao">Data de Emissão:</label>
@@ -364,19 +407,19 @@
 
             <h3>Dados do Cliente</h3>
             <div class="form-group">
-                <label for="cliente-nome">Nome:</label>
+                <label for="cliente-nome">Empresa/Nome:</label>
                 <input type="text" id="cliente-nome" value="" placeholder="Nome do Cliente" oninput="updatePreview('cliente-nome-preview', this.value)">
             </div>
             <div class="form-group">
                 <label for="cliente-morada">Morada:</label>
-                <input type="text" id="cliente-morada" value="" placeholder="Morada completa" oninput="updatePreview('cliente-morada-preview', this.value)">
+                <textarea id="cliente-morada" rows="3" placeholder="Morada do Cliente" oninput="updateAddressPreview(this.value)"></textarea>
             </div>
             <div class="form-group">
                 <label for="cliente-contacto">Contacto:</label>
                 <input type="text" id="cliente-contacto" value="" placeholder="Contacto telefónico" oninput="updatePreview('cliente-contacto-preview', this.value)">
             </div>
             <div class="form-group">
-                <label for="cliente-nif">NIF</label>
+                <label for="cliente-nif">NIF:</label>
                 <input type="text" id="cliente-nif" value="" placeholder="NIF do Cliente" oninput="updatePreview('cliente-nif-preview', this.value)">
             </div>
             
@@ -388,7 +431,7 @@
                     <button class="btn btn-remove" onclick="removeItem(1)">Remover</button>
                     <div class="form-group">
                         <label>Descrição:</label>
-                        <textarea id="description-1" rows="2" oninput="updateItemPreview(1)"></textarea>
+                        <textarea id="description-1" rows="2" placeholder="Artigo" oninput="updateItemPreview(1)"></textarea>
                     </div>
                     
                     <div class="item-details">
@@ -406,11 +449,11 @@
                         <div class="item-details-row">
                             <div class="percent-input-group">
                                 <label for="discount-percent-1">Desc. (%):</label>
-                                <input type="number" id="discount-percent-1" value="" min="0" max="100" step="1" oninput="updateItemPreview(1)">
+                                <input type="number" id="discount-percent-1" value="" min="0" max="100" step="0.01" oninput="updateItemPreview(1)">
                             </div>
                             <div class="percent-input-group">
                                 <label for="iva-percent-1">IVA (%):</label>
-                                <input type="number" id="iva-percent-1" value="" min="0" step="0.1" oninput="updateItemPreview(1)">
+                                <input type="number" id="iva-percent-1" value="" min="0" step="0.01" oninput="updateItemPreview(1)">
                             </div>
                         </div>
                     </div>
@@ -419,6 +462,13 @@
 
             <button class="btn btn-add" onclick="addItem()">+ Adicionar Item</button>
 
+            <hr>
+            
+            <h3>Notas</h3>
+            <div class="form-group">
+                <label for="notes">Observações / Notas:</label>
+                <textarea id="notes" rows="4" oninput="updateNotesPreview(this.value)" placeholder="Condições de pagamento, validade do orçamento, observações, etc."></textarea>
+            </div>
             <hr>
 
             <div class="export-controls">
@@ -440,12 +490,12 @@
                 <div class="details-section">
                     <div>
                         <h4>EMPRESA</h4>
-                        <p style="margin: 0;">Rua Exemplo, Porta 01</p>
-                        <p style="margin: 0;">info@empresa.com</p>
-                        <p style="margin: 0;">+351 933 000 0000</p>
+                        <p style="margin: 0;">Rua Exemplo, Porta 1</p>
+                        <p style="margin: 0;">info@nempresa.com</p>
+                        <p style="margin: 0;">(+351) 939393939</p>
                     </div>
                     <div style="text-align: right;">
-                        <h4>Cliente</h4>
+                        <h4>PARA:</h4>
                         <p style="margin: 0;" id="cliente-nome-preview"></p>
                         <p style="margin: 0;" id="cliente-morada-preview"></p>
                         <p style="margin: 0;" id="cliente-contacto-preview"></p>
@@ -469,7 +519,7 @@
                             <td><span id="preview-description-1"></span></td>
                             <td class="numeric-col"><span id="preview-price-1"></span> €</td>
                             <td class="numeric-col"><span id="preview-qty-1"></span></td>
-                            <td class="numeric-col discount-col" id="preview-discount-1"></td>
+                            <td class="numeric-col discount-col" id="preview-discount-1"></td> 
                             <td class="numeric-col iva-col" id="preview-iva-1"></td>
                             <td class="numeric-col"><span id="preview-total-1"></span> €</td>
                         </tr>
@@ -494,9 +544,13 @@
                         <span class="value" id="total-final-value">€</span>
                     </div>
                 </div>
-
+                
+                <div id="notes-preview-container" class="notes-section">
+                    <h4>Observações / Notas</h4>
+                    <p class="notes-content" id="notes-preview-content"></p>
+                </div>
                 <div style="text-align: center; margin-top: 50px; font-size: 0.8em; color: #777;">
-                    <p>EMPRESA | Rua Exemplo, Porta 01 | info@empresa.com | +351 933 000 0000</p>
+                    <p>EMPRESA | Rua Exemplo, Porta 1 | info@empresa.com | (+351) 939393939</p>
                 </div>
             </div>
         </div>
@@ -509,6 +563,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             updateItemPreview(1);
             updateTotals();
+            // Inicializar a secção de notas (para garantir que a secção inicial fica oculta se estiver vazia)
+            updateNotesPreview(document.getElementById('notes').value); 
         });
         
         // --- FUNÇÕES DE TOAST NOTIFICATION ---
@@ -567,6 +623,29 @@
             document.getElementById(idElementoPreview).textContent = valor;
         }
 
+        function updateAddressPreview(value) {
+            // Substitui quebras de linha (\n) por tags HTML <br>
+            const htmlValue = value.replace(/\n/g, '<br>');
+            document.getElementById('cliente-morada-preview').innerHTML = htmlValue;
+        }
+        
+        // --- NOVA FUNÇÃO PARA PROCESSAR AS NOTAS MULTILINHAS ---
+        function updateNotesPreview(value) {
+            const htmlValue = value.replace(/\n/g, '<br>');
+            const notesContentElement = document.getElementById('notes-preview-content');
+            const notesContainer = document.getElementById('notes-preview-container');
+            
+            notesContentElement.innerHTML = htmlValue;
+            
+            // Mostrar ou ocultar a secção de notas
+            if (value.trim() === '') {
+                notesContainer.style.display = 'none';
+            } else {
+                notesContainer.style.display = 'block';
+            }
+        }
+        // --------------------------------------------------------
+
         function addItem() {
             itemIdCounter++;
             const id = itemIdCounter;
@@ -600,11 +679,11 @@
                     <div class="item-details-row">
                         <div class="percent-input-group">
                             <label for="discount-percent-${id}">Desc. (%):</label>
-                            <input type="number" id="discount-percent-${id}" value="" min="0" max="100" step="1" oninput="updateItemPreview(${id})">
+                            <input type="number" id="discount-percent-${id}" value="" min="0" max="100" step="0.01" oninput="updateItemPreview(${id})">
                         </div>
                         <div class="percent-input-group">
                             <label for="iva-percent-${id}">IVA (%):</label>
-                            <input type="number" id="iva-percent-${id}" value="" min="0" step="0.1" oninput="updateItemPreview(${id})">
+                            <input type="number" id="iva-percent-${id}" value="" min="0" step="0.01" oninput="updateItemPreview(${id})">
                         </div>
                     </div>
                 </div>
@@ -620,8 +699,8 @@
                 <td><span id="preview-description-${id}"></span></td>
                 <td class="numeric-col"><span id="preview-price-${id}">0.00</span> €</td>
                 <td class="numeric-col"><span id="preview-qty-${id}">1</span></td>
-                <td class="numeric-col discount-col" id="preview-discount-${id}">0%</td>
-                <td class="numeric-col iva-col" id="preview-iva-${id}">23%</td> 
+                <td class="numeric-col discount-col" id="preview-discount-${id}">0.00%</td>
+                <td class="numeric-col iva-col" id="preview-iva-${id}">23.00%</td> 
                 <td class="numeric-col"><span id="preview-total-${id}">0.00</span> €</td>
             `;
             previewContainer.appendChild(newPreviewRow);
@@ -660,8 +739,10 @@
             document.getElementById(`preview-description-${id}`).textContent = description;
             document.getElementById(`preview-price-${id}`).textContent = precoBaseLinha.toFixed(2); 
             document.getElementById(`preview-qty-${id}`).textContent = qty;
-            document.getElementById(`preview-discount-${id}`).textContent = `${discountPercent.toFixed(0)}%`;
-            document.getElementById(`preview-iva-${id}`).textContent = `${ivaPercent.toFixed(1)}%`;
+            
+            document.getElementById(`preview-discount-${id}`).textContent = `${discountPercent.toFixed(2)}%`;
+            document.getElementById(`preview-iva-${id}`).textContent = `${ivaPercent.toFixed(2)}%`;
+            
             document.getElementById(`preview-total-${id}`).textContent = totalLinha.toFixed(2);
 
             updateTotals();
@@ -738,38 +819,42 @@
             return roundedValue.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
         }
 
-        // --- FUNÇÃO DE EXPORTAÇÃO PARA PDF ---
+        // --- FUNÇÃO DE EXPORTAÇÃO PARA PDF (CORRIGIDA) ---
+        async function downloadPDF() {
+    // 1. OBTENÇÃO DO NOME DO FICHEIRO (N.º do Documento)
+    const numeroDocumento = document.getElementById('numero').value.trim();
+    // Cria um nome de ficheiro seguro, usando um fallback se o campo estiver vazio
+    const nomeFicheiro = (numeroDocumento ? numeroDocumento : 'Orçamento') + '.pdf';
+    
+    const orcamentoElement = document.getElementById('orcamento-container');
 
-        function downloadPDF() {
-            const editorPanel = document.getElementById('editor-panel');
-            const container = document.getElementById('main-container');
-            const orcamentoElement = document.getElementById('orcamento-container');
+    // 2. Preparação: Aplica a classe que esconde o editor e formata o layout para A4
+    document.body.classList.add('pdf-mode');
 
-            editorPanel.style.display = 'none';
-            container.style.display = 'block'; 
-            orcamentoElement.classList.add('pdf-ready'); 
+    const opt = {
+        margin: 5, 
+        filename: nomeFicheiro, // <-- AGORA USA O VALOR DINÂMICO
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+            scale: 2, 
+            logging: false, 
+            dpi: 192, 
+            letterRendering: true 
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
 
-            const opt = {
-                margin: 5, 
-                filename: 'Orçamento NEMPRESA.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { 
-                    scale: 2, 
-                    logging: true, 
-                    dpi: 192, 
-                    letterRendering: true 
-                },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
+    // 3. Geração do PDF
+    // Nota: Captura apenas o elemento 'orcamento-container', que tem o layout de documento
+    await html2pdf().set(opt).from(orcamentoElement).save();
 
-            html2pdf().set(opt).from(orcamentoElement).save().then(() => {
-                editorPanel.style.display = 'flex';
-                container.style.display = 'flex';
-                orcamentoElement.classList.remove('pdf-ready');
-            });
-        }
+    // 4. Limpeza: Restaura o layout original para que o editor volte a aparecer
+    document.body.classList.remove('pdf-mode');
+    
+    createToast('success', 'PDF gerado e descarregado com sucesso!');
+}
         
-        // --- FUNÇÕES DE GUARDAR/ABRIR NO EXPLORADOR (File System Access API) ---
+        // --- FUNÇÕES DE GUARDAR/ABRIR NO EXPLORADOR ---
 
         function collectFormData() {
             const data = {
@@ -783,7 +868,9 @@
                     contacto: document.getElementById('cliente-contacto').value,
                     nif: document.getElementById('cliente-nif').value,
                 },
-                items: []
+                items: [],
+                // NOVO: Adicionar notas
+                notes: document.getElementById('notes').value
             };
 
             const itemRows = document.querySelectorAll('#items-list .item-row');
@@ -897,9 +984,14 @@
             document.getElementById('cliente-contacto').value = data.cliente.contacto;
             document.getElementById('cliente-nif').value = data.cliente.nif;
             updatePreview('cliente-nome-preview', data.cliente.nome);
-            updatePreview('cliente-morada-preview', data.cliente.morada);
+            updateAddressPreview(data.cliente.morada);
             updatePreview('cliente-contacto-preview', data.cliente.contacto);
             updatePreview('cliente-nif-preview', data.cliente.nif);
+            
+            // NOVO: Preencher campo de notas
+            const notesField = document.getElementById('notes');
+            notesField.value = data.notes || '';
+            updateNotesPreview(notesField.value);
 
             // 4. Adicionar e preencher itens
             data.items.forEach(item => {
